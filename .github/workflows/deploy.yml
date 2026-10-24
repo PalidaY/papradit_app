@@ -1,0 +1,67 @@
+name: Deploy approved image
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: Commit SHA whose Checks run has been approved
+        required: true
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit }}
+      - name: Require successful Checks for the exact revision
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          COMMIT_SHA=$(git rev-parse HEAD)
+          gh api --method GET "repos/$GITHUB_REPOSITORY/actions/workflows/checks.yml/runs" \
+            -f head_sha="$COMMIT_SHA" -f per_page=100 > checks-runs.json
+          python infra/release_gate.py "$COMMIT_SHA" "$GITHUB_REPOSITORY" < checks-runs.json
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr
+      - name: Build and push the approved revision
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+        run: |
+          IMAGE="$REGISTRY/$REPOSITORY:$(git rev-parse HEAD)"
+          docker build --target production -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "APP_IMAGE=$IMAGE" >> "$GITHUB_ENV"
+      - name: Render and register task definition
+        env:
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          ECS_TASK_FAMILY: ${{ vars.ECS_TASK_FAMILY }}
+          ECS_EXECUTION_ROLE_ARN: ${{ vars.ECS_EXECUTION_ROLE_ARN }}
+          ECS_TASK_ROLE_ARN: ${{ vars.ECS_TASK_ROLE_ARN }}
+          APP_HOST: ${{ vars.APP_HOST }}
+          RDS_HOST: ${{ vars.RDS_HOST }}
+          SMTP_HOST: ${{ vars.SMTP_HOST }}
+          FROM_EMAIL: ${{ vars.FROM_EMAIL }}
+          DJANGO_SECRET_ARN: ${{ vars.DJANGO_SECRET_ARN }}
+          DB_PASSWORD_ARN: ${{ vars.DB_PASSWORD_ARN }}
+          SMTP_USER_ARN: ${{ vars.SMTP_USER_ARN }}
+          SMTP_PASSWORD_ARN: ${{ vars.SMTP_PASSWORD_ARN }}
+          LOG_GROUP: ${{ vars.LOG_GROUP }}
+        run: |
+          python infra/render_task.py > task.json
+          aws ecs register-task-definition --cli-input-json file://task.json --query taskDefinition.taskDefinitionArn --output text > task-arn.txt
+      - name: Deploy after migration approval
+        env:
+          ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
+          ECS_SERVICE: ${{ vars.ECS_SERVICE }}
+        run: |
+          aws ecs update-service --cluster "$ECS_CLUSTER" --service "$ECS_SERVICE" --task-definition "$(cat task-arn.txt)" > /dev/null
+          aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE"

@@ -1,0 +1,12 @@
+from django.urls import path
+from django.contrib.auth import views as auth
+from core import views as core
+from catalog import views as catalog
+from work import views as work
+urlpatterns=[
+path('health/',core.health,name='health'),path('accounts/login/',core.ThrottledLogin.as_view(),name='login'),path('accounts/logout/',auth.LogoutView.as_view(),name='logout'),
+path('accounts/password-reset/',core.ThrottledReset.as_view(),name='password_reset'),path('accounts/password-reset/sent/',auth.PasswordResetDoneView.as_view(template_name='registration/password_reset_done.html'),name='password_reset_done'),path('accounts/reset/<uidb64>/<token>/',auth.PasswordResetConfirmView.as_view(template_name='registration/password_reset_confirm.html'),name='password_reset_confirm'),path('accounts/reset/done/',auth.PasswordResetCompleteView.as_view(template_name='registration/password_reset_complete.html'),name='password_reset_complete'),path('accounts/password-change/',auth.PasswordChangeView.as_view(template_name='form.html',success_url='/'),name='password_change'),
+path('admin/roles/',core.roles,name='roles'),path('admin/users/<int:pk>/roles/',core.membership,name='membership'),path('admin/users/',core.users,name='users'),path('admin/users/invite/',core.invite,name='invite'),path('admin/users/<int:pk>/',core.account,name='account'),path('admin/users/<int:pk>/grants/',core.grants,name='grants'),path('admin/audit/',core.audit_log,name='audit'),
+path('catalog/<str:kind>/',catalog.listing,name='catalog-list'),path('catalog/<str:kind>/new/',catalog.edit,name='catalog-create'),path('catalog/<str:kind>/<uuid:pk>/edit/',catalog.edit,name='catalog-edit'),path('catalog/wages/<uuid:pk>/end/',catalog.retire_rate,name='rate-end'),path('api/work/lookups/',catalog.lookups,name='lookups'),
+path('',work.dashboard,name='dashboard'),path('work/',work.listing,name='pr-list'),path('work/new/',work.create,name='pr-create'),path('work/export/',work.export,name='work-export'),path('work/<uuid:pk>/',work.detail,name='pr-detail'),path('work/<uuid:pk>/edit/',work.edit_draft,name='pr-edit'),path('work/<uuid:pk>/post/',work.post,name='pr-post'),path('work/<uuid:pk>/close/<str:status>/',work.close,name='pr-close'),path('work/step/<int:pk>/assign/',work.assignment,name='assignment'),path('work/assignment/<uuid:pk>/receive/',work.receipt,name='receipt'),path('work/line/<uuid:pk>/deliver/',work.delivery,name='delivery'),path('work/reverse/<str:kind>/<uuid:pk>/',work.reverse,name='reverse'),path('api/work/<uuid:pk>/',work.api_detail,name='api-pr'),
+]

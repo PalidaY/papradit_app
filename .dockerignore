@@ -1,0 +1,10 @@
+.git
+.env
+.venv
+__pycache__
+staticfiles
+.test-artifacts
+
+# Documentation and CI definitions are not application runtime files.
+docs
+.github
