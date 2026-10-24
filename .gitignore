@@ -1,0 +1,8 @@
+.venv/
+.env
+__pycache__/
+*.pyc
+staticfiles/
+.coverage
+playwright-report/
+.test-artifacts/

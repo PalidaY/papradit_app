@@ -1,0 +1,43 @@
+{
+  "family": "${ECS_TASK_FAMILY}",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "runtimePlatform": {"cpuArchitecture": "X86_64", "operatingSystemFamily": "LINUX"},
+  "executionRoleArn": "${ECS_EXECUTION_ROLE_ARN}",
+  "taskRoleArn": "${ECS_TASK_ROLE_ARN}",
+  "containerDefinitions": [{
+    "name": "app",
+    "image": "${APP_IMAGE}",
+    "essential": true,
+    "portMappings": [{"containerPort": 8000, "protocol": "tcp"}],
+    "readonlyRootFilesystem": true,
+    "mountPoints": [{"sourceVolume":"tmp","containerPath":"/tmp","readOnly":false}],
+    "environment": [
+      {"name":"DJANGO_DEBUG","value":"0"},
+      {"name":"DJANGO_ALLOWED_HOSTS","value":"${APP_HOST}"},
+      {"name":"DJANGO_CSRF_TRUSTED_ORIGINS","value":"https://${APP_HOST}"},
+      {"name":"PUBLIC_BASE_URL","value":"https://${APP_HOST}"},
+      {"name":"TRUST_HTTPS_PROXY","value":"1"},
+      {"name":"POSTGRES_HOST","value":"${RDS_HOST}"},
+      {"name":"POSTGRES_DB","value":"papradit"},
+      {"name":"POSTGRES_USER","value":"papradit_app"},
+      {"name":"POSTGRES_SSLMODE","value":"verify-full"},
+      {"name":"PGSSLROOTCERT","value":"/run/certs/rds-ca.pem"},
+      {"name":"EMAIL_HOST","value":"${SMTP_HOST}"},
+      {"name":"EMAIL_PORT","value":"587"},
+      {"name":"EMAIL_USE_TLS","value":"1"},
+      {"name":"DEFAULT_FROM_EMAIL","value":"${FROM_EMAIL}"}
+    ],
+    "secrets": [
+      {"name":"DJANGO_SECRET_KEY","valueFrom":"${DJANGO_SECRET_ARN}"},
+      {"name":"POSTGRES_PASSWORD","valueFrom":"${DB_PASSWORD_ARN}"},
+      {"name":"EMAIL_HOST_USER","valueFrom":"${SMTP_USER_ARN}"},
+      {"name":"EMAIL_HOST_PASSWORD","valueFrom":"${SMTP_PASSWORD_ARN}"}
+    ],
+    "healthCheck": {"command":["CMD-SHELL","python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/')\""],"interval":30,"timeout":5,"retries":3,"startPeriod":30},
+    "logConfiguration": {"logDriver":"awslogs","options":{"awslogs-group":"${LOG_GROUP}","awslogs-region":"${AWS_REGION}","awslogs-stream-prefix":"app"}}
+  }],
+  "volumes": [{"name":"tmp"}]
+}
